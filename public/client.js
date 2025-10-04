@@ -666,3 +666,13 @@ function computeEstimatedStart(list, index) {
     requestQueue
   };
 })();
+
+
+// Reception display button handler (opens a clean TV-friendly page)
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+  if (t && t.id === 'receptionDisplayBtn') {
+    // open in new window; preferred for TV setups
+    window.open('/reception_display.html', '_blank', 'noopener');
+  }
+});
