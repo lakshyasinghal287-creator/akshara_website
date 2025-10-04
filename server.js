@@ -30,6 +30,20 @@ app.post('/login', (req, res) => {
   if (username === RECEP_CREDENTIALS.username && password === RECEP_CREDENTIALS.password) {
     req.session.user = 'reception';
     return res.json({ ok: true });
+
+// API login route (matches client.js which uses /api/login)
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  if (username === RECEP_CREDENTIALS.username && password === RECEP_CREDENTIALS.password) {
+    req.session.user = 'reception';
+    // generate a lightweight token string (not used for server auth but returned to client)
+    const token = '';
+    return res.json({ ok: true, token, user: { username: RECEP_CREDENTIALS.username } });
+  }
+  return res.status(401).json({ ok: false, error: 'Invalid credentials' });
+});
+
+
   }
   return res.status(401).json({ ok: false, error: 'Invalid credentials' });
 });
