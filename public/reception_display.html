@@ -70,27 +70,8 @@
 
     async function render(){
       try{
-        let list = null;
-        try {
-          list = await requestQueue();
-        } catch(e) {
-          console.warn('requestQueue failed, will try fallback fetch', e);
-        }
-        // fallback: ensure we have a usable array
-        if (!Array.isArray(list)) {
-          try {
-            const res = await fetch('/api/queue');
-            if (res.ok) list = await res.json();
-          } catch(e) {
-            console.warn('fallback fetch failed', e);
-          }
-        }
-        if (!Array.isArray(list)) {
-          document.getElementById('meta').textContent = `Unable to load queue: no data`;
-          list = [];
-        } else {
-          document.getElementById('meta').textContent = `Total patients: ${list.length} • Updated: ${new Date().toLocaleTimeString()}`;
-        }
+        const list = await requestQueue();
+        document.getElementById('meta').textContent = `Total patients: ${list.length} • Updated: ${new Date().toLocaleTimeString()}`;
         const tbody = document.getElementById('qbody');
         tbody.innerHTML = '';
         for(let i=0;i<list.length;i++){
