@@ -1,0 +1,55 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "akshara_reception",
+      "passwordHash": "$2a$10$IrnCkLBtP7njpDFAqjp4fuVg8ZgAjuKD5QukMVRaL514neg6HB/Ma",
+      "role": "reception"
+    }
+  ],
+  "appointments": [
+    {
+      "id": 1759576501793,
+      "token": "T-1",
+      "name": "a",
+      "age": 22,
+      "sex": "Male",
+      "phone": "43434433433",
+      "email": null,
+      "arrivalTime": "2025-10-04T14:00:00.000Z",
+      "estConsultMin": 8,
+      "status": "waiting",
+      "startTime": null,
+      "endTime": null,
+      "createdAt": "2025-10-04T11:15:01.793Z",
+      "updatedAt": "2025-10-04T11:15:01.793Z"
+    },
+    {
+      "id": 1759576532589,
+      "token": "T-2",
+      "name": "lakshya",
+      "age": 23,
+      "sex": "Male",
+      "phone": "455245234523",
+      "email": null,
+      "arrivalTime": "2025-10-04T14:05:00.000Z",
+      "estConsultMin": 8,
+      "status": "waiting",
+      "startTime": null,
+      "endTime": null,
+      "createdAt": "2025-10-04T11:15:32.589Z",
+      "updatedAt": "2025-10-04T11:15:32.589Z"
+    }
+  ],
+  "consults": [
+    {
+      "id": 1759572942126,
+      "appointmentId": 1759572711080,
+      "token": "T-1",
+      "doctor": "akshara_reception",
+      "startTime": "2025-10-04T10:14:43.293Z",
+      "endTime": "2025-10-04T10:15:42.126Z",
+      "durationMin": 1
+    }
+  ]
+}

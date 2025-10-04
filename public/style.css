@@ -1,0 +1,329 @@
+/* -------------------------------------------------------------------
+   Akshara Hospital OPD - Friendly & Premium UI Theme
+   Font: Poppins (Rounded, Bubbly, Clean)
+   Updated: Larger text, thicker buttons, smooth spacing
+------------------------------------------------------------------- */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+  --navy: #0a1f44;
+  --mint-bg: #E9FBF6;
+  --mint-accent: #37BFAF;
+  --gold: #FFC857;
+  --white: #ffffff;
+  --text-dark: #1B1B1B;
+  --radius: 14px;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* Base setup */
+* {
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, var(--mint-bg), #dff7f2);
+  color: var(--text-dark);
+  font-size: 18px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* Header */
+.app-header {
+  width: 100%;
+  max-width: 1100px;
+  background: var(--navy);
+  color: var(--white);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  border-radius: 18px;
+  margin-top: 25px;
+  box-shadow: var(--shadow);
+}
+
+.app-header .logo {
+  height: 85px;
+  width: 85px;
+  border-radius: 12px;
+  background: #fff;
+  object-fit: contain;
+  padding: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.brand-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.brand-sub {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.clock {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Screen wrapper */
+.stage {
+  width: 100%;
+  max-width: 1100px;
+  margin-top: 40px;
+  padding: 0 25px;
+}
+
+/* Cards / panels */
+.card {
+  background: var(--white);
+  border-radius: 20px;
+  padding: 45px 55px;
+  box-shadow: var(--shadow);
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.1);
+}
+
+/* Headings */
+h1, h2, h3 {
+  font-weight: 700;
+  color: var(--navy);
+  margin-top: 0;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.3rem; }
+
+/* Inputs & labels */
+input, select {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  border: 2px solid #d0e7e2;
+  font-size: 16px;
+  transition: 0.3s;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--mint-accent);
+  box-shadow: 0 0 10px rgba(55,191,175,0.2);
+}
+
+/* Buttons */
+.btn, button {
+  background: var(--gold);
+  color: var(--navy);
+  border: none;
+  padding: 14px 28px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn:hover, button:hover {
+  background: #ffd46d;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(255, 200, 87, 0.35);
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 2px solid var(--navy);
+  color: var(--navy);
+}
+
+.btn.ghost:hover {
+  background: rgba(10,31,68,0.1);
+}
+
+/* Tiles */
+.tile-container {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.tile {
+  background: #fff;
+  width: 260px;
+  height: 260px;
+  border-radius: 25px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.tile:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 18px 50px rgba(55,191,175,0.3);
+}
+
+.tile-icon {
+  width: 64px;
+  height: 64px;
+  background: var(--mint-accent);
+  border-radius: 18px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(55,191,175,0.4);
+}
+
+.tile-title {
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--navy);
+}
+
+.tile-sub {
+  font-size: 14px;
+  opacity: 0.8;
+  text-align: center;
+}
+
+/* Reception form layout */
+.reception-panel .grid {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 40px;
+}
+
+@media (max-width: 1024px) {
+  .reception-panel .grid { grid-template-columns: 1fr; }
+}
+
+/* Queue */
+.queue {
+  background: #fcfdfd;
+  padding: 16px;
+  border-radius: 20px;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.03);
+  max-height: 550px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  background: #fff;
+  padding: 16px 20px;
+  border-radius: 15px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.05);
+  transition: 0.3s;
+}
+
+.queue-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+}
+
+/* Footer */
+.footer {
+  font-size: 14px;
+  color: #555;
+  margin-top: 40px;
+}
+
+/* ----- Doctor Shift Manager UI ----- */
+.shift-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.shift-form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.shift-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.shift-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(63,185,176,0.3);
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+.shift-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(63,185,176,0.15);
+}
+
+.shift-item span {
+  font-size: 14px;
+  color: var(--navy);
+}
+
+.shift-item button {
+  background: transparent;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.shift-item button:hover {
+  color: #c0392b;
+}
+
+/* Doctor avatar — circular, premium look */
+.doctor-img {
+  width: 128px;               /* avatar size (adjust if you want bigger/smaller) */
+  height: 128px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 12px 36px rgba(10,35,66,0.12), inset 0 1px 0 rgba(255,255,255,0.45);
+  border: 6px solid rgba(255,255,255,0.85); /* soft white ring */
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(245,255,252,0.6));
+}
+
+/* subtle hover lift and glow */
+.doctor-img:hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 22px 56px rgba(10,35,66,0.18), 0 0 28px rgba(63,185,176,0.08);
+}
+
+
