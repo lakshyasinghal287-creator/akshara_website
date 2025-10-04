@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reception Display — Akshara Hospital</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:"Quicksand",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;margin:0;background:#f7fbfd;color:#04243a}
+    .container{padding:18px;max-width:1400px;margin:0 auto}
+    h1{font-size:28px;margin:8px 0 18px}
+    .row{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .clock{font-size:20px;font-weight:600}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:14px;text-align:left;border-bottom:1px solid rgba(4,36,58,0.06)}
+    th{font-size:16px}
+    td.name{font-weight:700;font-size:18px}
+    td.token{font-weight:800;font-size:20px}
+    td.eta{font-size:18px}
+    tr.current{background:linear-gradient(90deg, rgba(44,197,184,0.08), rgba(4,36,58,0.02))}
+    @media (max-width:800px){h1{font-size:20px}.container{padding:10px} td{padding:10px}}
+    html,body{height:100%}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="row">
+      <h1>Akshara Hospital — OPD Queue (Reception Display)</h1>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+    <div id="meta" style="margin-top:6px;color:rgba(4,36,58,0.7)"></div>
+    <table id="qtable" aria-live="polite" role="table" >
+      <thead>
+        <tr><th>Token</th><th>Patient</th><th>Phone</th><th>Booked</th><th>Est. Start</th><th>Status</th></tr>
+      </thead>
+      <tbody id="qbody"></tbody>
+    </table>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+  <script>
+    // Use exposed window._akshara functions if available, otherwise fetch /api/queue
+    async function requestQueue() {
+      if (window._akshara && window._akshara.requestQueue) {
+        try {
+          const q = await window._akshara.requestQueue();
+          return q;
+        } catch(e){
+          console.error(e);
+        }
+      }
+      // fallback fetch
+      const res = await fetch('/api/queue');
+      if (!res.ok) throw new Error('Failed to fetch queue');
+      return await res.json();
+    }
+
+    function formatTime(d){
+      if(!d) return '—';
+      try{
+        const dt = new Date(d);
+        return dt.toLocaleTimeString();
+      }catch(e){return '—'}
+    }
+
+    function updateClock(){
+      document.getElementById('clock').textContent = new Date().toLocaleString();
+    }
+
+    async function render(){
+      try{
+        let list = null;
+        try {
+          list = await requestQueue();
+        } catch(e) {
+          console.warn('requestQueue failed, will try fallback fetch', e);
+        }
+        // fallback: ensure we have a usable array
+        if (!Array.isArray(list)) {
+          try {
+            const res = await fetch('/api/queue');
+            if (res.ok) list = await res.json();
+          } catch(e) {
+            console.warn('fallback fetch failed', e);
+          }
+        }
+        if (!Array.isArray(list)) {
+          document.getElementById('meta').textContent = `Unable to load queue: no data`;
+          list = [];
+        } else {
+          document.getElementById('meta').textContent = `Total patients: ${list.length} • Updated: ${new Date().toLocaleTimeString()}`;
+        }
+        const tbody = document.getElementById('qbody');
+        tbody.innerHTML = '';
+        for(let i=0;i<list.length;i++){
+          const a = list[i];
+          // try to compute estimated start via exposed function if available
+          let est = '—';
+          if (window._akshara && window._akshara.computeEstimatedStart) {
+            try{
+              const e = window._akshara.computeEstimatedStart(list,i);
+              est = (typeof e === 'string') ? e : new Date(e).toLocaleTimeString();
+            }catch(err){ est = '—' }
+          } else {
+            est = a.arrivalTime ? formatTime(a.arrivalTime) : '—';
+          }
+          const tr = document.createElement('tr');
+          if (a.status==='inconsult') tr.classList.add('current');
+          tr.innerHTML = `<td class="token">${a.token||'—'}</td>
+                          <td class="name">${a.name||'—'}</td>
+                          <td>${a.phone||'—'}</td>
+                          <td>${a.arrivalTime?formatTime(a.arrivalTime):'—'}</td>
+                          <td class="eta">${est}</td>
+                          <td>${a.status||'—'}</td>`;
+          tbody.appendChild(tr);
+        }
+      }catch(err){
+        console.error(err);
+        document.getElementById('meta').textContent = 'Unable to load queue: ' + (err.message||err);
+      }
+    }
+
+    // initial render and periodic refresh
+    updateClock();
+    render();
+    setInterval(updateClock,1000);
+    setInterval(render,10000);
+
+    // allow fullscreen shortcut: press F to toggle fullscreen
+    document.addEventListener('keydown', e=>{
+      if(e.key==='f' || e.key==='F'){
+        if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+        else document.exitFullscreen().catch(()=>{});
+      }
+    });
+
+    // auto-enter fullscreen on open (useful for TV if kiosk opens this url)
+    window.addEventListener('load',()=>{ setTimeout(()=>{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); },500); });
+
+  </script>
+</body>
+</html>

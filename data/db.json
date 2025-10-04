@@ -9,36 +9,52 @@
   ],
   "appointments": [
     {
-      "id": 1759576501793,
+      "id": 1759594794808,
       "token": "T-1",
-      "name": "a",
-      "age": 22,
-      "sex": "Male",
-      "phone": "43434433433",
-      "email": null,
-      "arrivalTime": "2025-10-04T14:00:00.000Z",
-      "estConsultMin": 8,
-      "status": "waiting",
-      "startTime": null,
-      "endTime": null,
-      "createdAt": "2025-10-04T11:15:01.793Z",
-      "updatedAt": "2025-10-04T11:15:01.793Z"
-    },
-    {
-      "id": 1759576532589,
-      "token": "T-2",
       "name": "lakshya",
       "age": 23,
       "sex": "Male",
-      "phone": "455245234523",
+      "phone": "3232323232",
       "email": null,
-      "arrivalTime": "2025-10-04T14:05:00.000Z",
-      "estConsultMin": 8,
+      "arrivalTime": "2025-10-04T17:20:00.000Z",
+      "estConsultMin": 5,
+      "status": "done",
+      "startTime": "2025-10-04T16:23:02.406Z",
+      "endTime": "2025-10-04T16:23:29.413Z",
+      "createdAt": "2025-10-04T16:19:54.808Z",
+      "updatedAt": "2025-10-04T16:23:29.413Z"
+    },
+    {
+      "id": 1759594804324,
+      "token": "T-2",
+      "name": "2232",
+      "age": 23,
+      "sex": "Male",
+      "phone": "82875597 01",
+      "email": null,
+      "arrivalTime": "2025-10-04T16:20:04.324Z",
+      "estConsultMin": 5,
       "status": "waiting",
       "startTime": null,
       "endTime": null,
-      "createdAt": "2025-10-04T11:15:32.589Z",
-      "updatedAt": "2025-10-04T11:15:32.589Z"
+      "createdAt": "2025-10-04T16:20:04.324Z",
+      "updatedAt": "2025-10-04T16:20:04.324Z"
+    },
+    {
+      "id": 1759594817600,
+      "token": "T-3",
+      "name": "22",
+      "age": 22,
+      "sex": "Male",
+      "phone": "3233334343",
+      "email": null,
+      "arrivalTime": "2025-10-04T16:20:17.600Z",
+      "estConsultMin": 9,
+      "status": "waiting",
+      "startTime": null,
+      "endTime": null,
+      "createdAt": "2025-10-04T16:20:17.600Z",
+      "updatedAt": "2025-10-04T16:20:17.600Z"
     }
   ],
   "consults": [
@@ -50,6 +66,15 @@
       "startTime": "2025-10-04T10:14:43.293Z",
       "endTime": "2025-10-04T10:15:42.126Z",
       "durationMin": 1
+    },
+    {
+      "id": 1759595009413,
+      "appointmentId": 1759594794808,
+      "token": "T-1",
+      "doctor": "akshara_reception",
+      "startTime": "2025-10-04T16:23:02.406Z",
+      "endTime": "2025-10-04T16:23:29.413Z",
+      "durationMin": 0
     }
   ]
 }
