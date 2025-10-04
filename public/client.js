@@ -7,22 +7,6 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const API = (p) => '/api' + p;
-
-// helper to call API endpoints and always send same-origin credentials (session cookie)
-function apiFetch(path, opts={}) {
-  const merged = Object.assign({}, opts || {});
-  if (!merged.credentials) merged.credentials = 'same-origin';
-  return apiFetch(path), merged);
-}
-
-
-// lightweight akFetch used only for login to ensure credentials are sent
-window.akFetch = function akFetch(url, opts = {}) {
-  const merged = Object.assign({}, opts || {});
-  if (!merged.credentials) merged.credentials = 'same-origin';
-                   return window.fetch(url, merged);
-};
-
   let jwt = localStorage.getItem('mf_jwt') || null;
   let cachedQueue = [];
 
@@ -277,21 +261,7 @@ function bindShiftManagerUI() {
     const pass = $('password') ? $('password').value.trim() : '';
     if (!user || !pass) { if ($('loginError')) $('loginError').textContent = 'Enter credentials'; return; }
     try {
-      const res = await apiFetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass })
-      });const data = await res.json();
-      jwt = data.token || '';
-      try { localStorage.setItem('mf_jwt', jwt); } catch(e) {}
-      if (data.user && data.user.username) $('currentUser').textContent = data.user.username;
-      if ($('loginError')) $('loginError').textContent = '';
-      showScreen('homeScreen');
-    } catch (err) {
-      console.error(err);
-      if ($('loginError')) $('loginError').textContent = 'Login error';
-    }
-  });
+      const res = await fetch(API('/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass }) });
       if (!res.ok) {
         const j = await res.json().catch(()=>({ error:'Login failed' }));
         if ($('loginError')) $('loginError').textContent = j.error || 'Login failed';
@@ -332,7 +302,7 @@ function bindShiftManagerUI() {
   }
 
   function fetchQueueOnce() {
-    apiFetch('/queue')).then(r => r.json()).then(q => { cachedQueue = q || []; applyFiltersAndRender(); }).catch(err => { console.warn('queue fetch failed', err); cachedQueue = []; applyFiltersAndRender(); });
+    fetch(API('/queue')).then(r => r.json()).then(q => { cachedQueue = q || []; applyFiltersAndRender(); }).catch(err => { console.warn('queue fetch failed', err); cachedQueue = []; applyFiltersAndRender(); });
   }
 
   // initialize socket
@@ -363,7 +333,7 @@ function bindShiftManagerUI() {
     const est = $('p_est') ? parseInt($('p_est').value) || null : null;
 
     try {
-      const res = await apiFetch('/appointments'), {
+      const res = await fetch(API('/appointments'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
         body: JSON.stringify({ name, age, sex, phone, arrivalTime: arrival, estConsultMin: est })
@@ -393,9 +363,9 @@ function bindShiftManagerUI() {
       if (!jwt) { alert('Login required'); return; }
       try {
         if (btn.classList.contains('start')) {
-          await apiFetch('/consult/start'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
+          await fetch(API('/consult/start'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
         } else if (btn.classList.contains('finish')) {
-          await apiFetch('/consult/end'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
+          await fetch(API('/consult/end'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
         }
         if (window.io && io) io().emit('request_queue'); else fetchQueueOnce();
       } catch (err) { console.error(err); }
@@ -407,7 +377,7 @@ function bindShiftManagerUI() {
     const q = $('tokenInput') ? $('tokenInput').value.trim() : '';
     if (!q) return;
     try {
-      const res = await apiFetch('/queue?query=' + encodeURIComponent(q)));
+      const res = await fetch(API('/queue?query=' + encodeURIComponent(q)));
       if (!res.ok) { if ($('tokenResult')) $('tokenResult').textContent = 'Search failed'; return; }
       const matches = await res.json();
       const out = $('tokenResult');
@@ -416,7 +386,7 @@ function bindShiftManagerUI() {
       if (matches.length === 1 && matches[0].name) {
         const appt = matches[0];
         // fetch full queue to compute accurate ETA
-        const allRes = await apiFetch('/queue')); const all = await allRes.json();
+        const allRes = await fetch(API('/queue')); const all = await allRes.json();
         const idx = all.findIndex(a => a.token === appt.token);
         const est = computeEstimatedStart(all, idx);
         const estText = (typeof est === 'string') ? est : est.toLocaleTimeString();
@@ -442,7 +412,7 @@ function bindShiftManagerUI() {
       out.querySelectorAll('.viewMatch').forEach(btn => {
         btn.addEventListener('click', async (ev) => {
           const tokenVal = ev.currentTarget.dataset.token;
-          const allRes = await apiFetch('/queue')); const all = await allRes.json();
+          const allRes = await fetch(API('/queue')); const all = await allRes.json();
           const appt = all.find(a => a.token === tokenVal);
           if (!appt) { out.innerText = 'Could not load appointment details.'; return; }
           const idx = all.findIndex(a => a.token === tokenVal);
@@ -459,7 +429,7 @@ function bindShiftManagerUI() {
     if (!confirm('This will delete all appointments. Proceed?')) return;
     if (!jwt) { alert('Receptionist login required'); return; }
     try {
-      const res = await apiFetch('/appointments'), { method:'DELETE', headers:{'Authorization':'Bearer '+jwt} });
+      const res = await fetch(API('/appointments'), { method:'DELETE', headers:{'Authorization':'Bearer '+jwt} });
       if (!res.ok) { const j = await res.json().catch(()=>({error:'failed'})); alert('Failed: ' + (j.error || 'unknown')); return; }
       alert('Patient list reset.'); if (window.io && io) io().emit('request_queue'); else fetchQueueOnce();
     } catch (err) { console.error(err); alert('Reset failed'); }
@@ -467,7 +437,7 @@ function bindShiftManagerUI() {
 
   bind('downloadCSV', 'click', async () => {
     try {
-      const res = await apiFetch('/queue')); const data = await res.json();
+      const res = await fetch(API('/queue')); const data = await res.json();
       if (!data || !data.length) { alert('No patients to download'); return; }
       const header = ['token','name','age','sex','phone','arrivalTime','estConsultMin','status','startTime','endTime'];
       const rows = data.map(r => [ r.token||'', (r.name||'').replace(/"/g,'""'), r.age||'', r.sex||'', r.phone||'', r.arrivalTime?new Date(r.arrivalTime).toISOString():'', r.estConsultMin||'', r.status||'', r.startTime?new Date(r.startTime).toISOString():'', r.endTime?new Date(r.endTime).toISOString():'']);
@@ -706,3 +676,59 @@ document.addEventListener('click', (ev) => {
     window.open('/reception_display.html', '_blank', 'noopener');
   }
 });
+
+
+
+/* ---------- Robust UI re-attach helper (appended) ---------- */
+(function robustUIAttach(){
+  try {
+    const $ = (id)=> document.getElementById(id);
+    function safeBind(id, ev, fn) {
+      try {
+        const el = $(id);
+        if (!el) return false;
+        if (!el.__akshara_bound) {
+          el.addEventListener(ev, fn);
+          el.__akshara_bound = true;
+        }
+        return true;
+      } catch (e){
+        console.warn('safeBind error for', id, e);
+        return false;
+      }
+    }
+
+    if (typeof window.showScreen !== 'function') {
+      window.showScreen = function(id) {
+        try {
+          document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+          const next = document.getElementById(id);
+          if (next) next.classList.add('active');
+        } catch(e){ console.warn('fallback showScreen failed', e); }
+      };
+    }
+
+    safeBind('openPatient', 'click', ()=> window.showScreen && showScreen('patientScreen'));
+    safeBind('openLogin', 'click', ()=> window.showScreen && showScreen('loginScreen'));
+    safeBind('btnPatient', 'click', ()=> window.showScreen && showScreen('patientScreen'));
+    safeBind('btnLogin', 'click', ()=> window.showScreen && showScreen('loginScreen'));
+    safeBind('backHomeFromLogin', 'click', ()=> window.showScreen && showScreen('homeScreen'));
+    safeBind('backHomeFromPatient', 'click', ()=> window.showScreen && showScreen('homeScreen'));
+    safeBind('receptionDisplayBtn', 'click', ()=> window.open('/reception_display.html','_blank','noopener'));
+
+    window.forceAttachUI = function(){
+      safeBind('openPatient', 'click', ()=> window.showScreen && showScreen('patientScreen'));
+      safeBind('openLogin', 'click', ()=> window.showScreen && showScreen('loginScreen'));
+      return true;
+    };
+
+    console.log('Robust UI attach completed — bound buttons:', {
+      openPatient: !!document.getElementById('openPatient'),
+      openLogin: !!document.getElementById('openLogin'),
+      btnPatient: !!document.getElementById('btnPatient'),
+      btnLogin: !!document.getElementById('btnLogin')
+    });
+  } catch (err) {
+    console.error('robustUIAttach failed', err);
+  }
+})();
