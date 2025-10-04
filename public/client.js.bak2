@@ -7,6 +7,14 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const API = (p) => '/api' + p;
+
+// fetch wrapper that ensures cookies (session) are sent for same-origin requests
+const akFetch = (url, opts = {}) => {
+  const merged = Object.assign({ credentials: 'same-origin' }, opts || {});
+  return window.akFetch(url, merged);
+};
+
+// replace global fetch usage by akFetch to ensure credentials are sent
   let jwt = localStorage.getItem('mf_jwt') || null;
   let cachedQueue = [];
 
@@ -261,7 +269,7 @@ function bindShiftManagerUI() {
     const pass = $('password') ? $('password').value.trim() : '';
     if (!user || !pass) { if ($('loginError')) $('loginError').textContent = 'Enter credentials'; return; }
     try {
-      const res = await fetch(API('/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass }) });
+      const res = await akFetch(API('/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass }) });
       if (!res.ok) {
         const j = await res.json().catch(()=>({ error:'Login failed' }));
         if ($('loginError')) $('loginError').textContent = j.error || 'Login failed';
@@ -302,7 +310,7 @@ function bindShiftManagerUI() {
   }
 
   function fetchQueueOnce() {
-    fetch(API('/queue')).then(r => r.json()).then(q => { cachedQueue = q || []; applyFiltersAndRender(); }).catch(err => { console.warn('queue fetch failed', err); cachedQueue = []; applyFiltersAndRender(); });
+    akFetch(API('/queue')).then(r => r.json()).then(q => { cachedQueue = q || []; applyFiltersAndRender(); }).catch(err => { console.warn('queue fetch failed', err); cachedQueue = []; applyFiltersAndRender(); });
   }
 
   // initialize socket
@@ -333,7 +341,7 @@ function bindShiftManagerUI() {
     const est = $('p_est') ? parseInt($('p_est').value) || null : null;
 
     try {
-      const res = await fetch(API('/appointments'), {
+      const res = await akFetch(API('/appointments'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
         body: JSON.stringify({ name, age, sex, phone, arrivalTime: arrival, estConsultMin: est })
@@ -363,9 +371,9 @@ function bindShiftManagerUI() {
       if (!jwt) { alert('Login required'); return; }
       try {
         if (btn.classList.contains('start')) {
-          await fetch(API('/consult/start'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
+          await akFetch(API('/consult/start'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
         } else if (btn.classList.contains('finish')) {
-          await fetch(API('/consult/end'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
+          await akFetch(API('/consult/end'), { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt}, body: JSON.stringify({ token: tok }) });
         }
         if (window.io && io) io().emit('request_queue'); else fetchQueueOnce();
       } catch (err) { console.error(err); }
@@ -377,7 +385,7 @@ function bindShiftManagerUI() {
     const q = $('tokenInput') ? $('tokenInput').value.trim() : '';
     if (!q) return;
     try {
-      const res = await fetch(API('/queue?query=' + encodeURIComponent(q)));
+      const res = await akFetch(API('/queue?query=' + encodeURIComponent(q)));
       if (!res.ok) { if ($('tokenResult')) $('tokenResult').textContent = 'Search failed'; return; }
       const matches = await res.json();
       const out = $('tokenResult');
@@ -386,7 +394,7 @@ function bindShiftManagerUI() {
       if (matches.length === 1 && matches[0].name) {
         const appt = matches[0];
         // fetch full queue to compute accurate ETA
-        const allRes = await fetch(API('/queue')); const all = await allRes.json();
+        const allRes = await akFetch(API('/queue')); const all = await allRes.json();
         const idx = all.findIndex(a => a.token === appt.token);
         const est = computeEstimatedStart(all, idx);
         const estText = (typeof est === 'string') ? est : est.toLocaleTimeString();
@@ -412,7 +420,7 @@ function bindShiftManagerUI() {
       out.querySelectorAll('.viewMatch').forEach(btn => {
         btn.addEventListener('click', async (ev) => {
           const tokenVal = ev.currentTarget.dataset.token;
-          const allRes = await fetch(API('/queue')); const all = await allRes.json();
+          const allRes = await akFetch(API('/queue')); const all = await allRes.json();
           const appt = all.find(a => a.token === tokenVal);
           if (!appt) { out.innerText = 'Could not load appointment details.'; return; }
           const idx = all.findIndex(a => a.token === tokenVal);
@@ -429,7 +437,7 @@ function bindShiftManagerUI() {
     if (!confirm('This will delete all appointments. Proceed?')) return;
     if (!jwt) { alert('Receptionist login required'); return; }
     try {
-      const res = await fetch(API('/appointments'), { method:'DELETE', headers:{'Authorization':'Bearer '+jwt} });
+      const res = await akFetch(API('/appointments'), { method:'DELETE', headers:{'Authorization':'Bearer '+jwt} });
       if (!res.ok) { const j = await res.json().catch(()=>({error:'failed'})); alert('Failed: ' + (j.error || 'unknown')); return; }
       alert('Patient list reset.'); if (window.io && io) io().emit('request_queue'); else fetchQueueOnce();
     } catch (err) { console.error(err); alert('Reset failed'); }
@@ -437,7 +445,7 @@ function bindShiftManagerUI() {
 
   bind('downloadCSV', 'click', async () => {
     try {
-      const res = await fetch(API('/queue')); const data = await res.json();
+      const res = await akFetch(API('/queue')); const data = await res.json();
       if (!data || !data.length) { alert('No patients to download'); return; }
       const header = ['token','name','age','sex','phone','arrivalTime','estConsultMin','status','startTime','endTime'];
       const rows = data.map(r => [ r.token||'', (r.name||'').replace(/"/g,'""'), r.age||'', r.sex||'', r.phone||'', r.arrivalTime?new Date(r.arrivalTime).toISOString():'', r.estConsultMin||'', r.status||'', r.startTime?new Date(r.startTime).toISOString():'', r.endTime?new Date(r.endTime).toISOString():'']);
