@@ -23,6 +23,15 @@
 
   <!-- your main stylesheet -->
   <link rel="stylesheet" href="style.css">
+
+<!-- Fix: ensure only one screen is visible at a time; default show #homeScreen -->
+<style>
+  /* Hide all screen panels by default; JS should add 'active' class to show one */
+  .screen { display: none !important; }
+  .screen.active { display: block !important; }
+  /* fallback: if JS fails, show home screen */
+  #homeScreen.screen { display: block !important; }
+</style>
 </head>
 <body>
   <!-- HEADER -->
@@ -41,7 +50,7 @@
 
   <main class="stage">
     <!-- HOME PAGE -->
-    <section id="homeScreen" class="screen active card fade home-page">
+    <section id="homeScreen" class="screen active card fade home-page screen active">
       <div class="home-container">
         <div class="hero">
           <!-- Doctor Profile -->
