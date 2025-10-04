@@ -1,218 +1,250 @@
-// server.js
-// Simple file-based DB (data/db.json), Express API + Socket.IO, basic JWT auth.
-
+// server.js - use this or merge the sections into your existing file
 const express = require('express');
-const http = require('http');
+const { createServer } = require('http');
 const path = require('path');
-const fs = require('fs').promises;
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-
-const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, 'data', 'db.json');
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
-
-// Ensure data directory exists
-const ensureDataDir = async () => {
-  const dir = path.join(__dirname, 'data');
-  try { await fs.access(dir); } catch { await fs.mkdir(dir); }
-};
-
-async function loadDb() {
-  try {
-    await ensureDataDir();
-    const raw = await fs.readFile(DB_FILE, 'utf8');
-    return JSON.parse(raw);
-  } catch (err) {
-    const defaultUserPassword = 'Akshara@123';
-    const passwordHash = bcrypt.hashSync(defaultUserPassword, 10);
-    const db = {
-      users: [{ id:1, username:'akshara_reception', passwordHash, role:'reception' }],
-      appointments: [],
-      consults: []
-    };
-    await saveDb(db);
-    console.log('Created new DB with default receptionist: akshara_reception / Akshara@123');
-    return db;
-  }
-}
-
-async function saveDb(db) {
-  await ensureDataDir();
-  await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-}
-
-const makeToken = (n) => `T-${n}`;
-
-function authMiddleware(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'Missing auth' });
-  const parts = auth.split(' ');
-  if (parts.length !== 2) return res.status(401).json({ error: 'Invalid auth' });
-  try {
-    const payload = jwt.verify(parts[1], JWT_SECRET);
-    req.user = payload;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
+const session = require('express-session'); // npm i express-session
+const bodyParser = require('body-parser');
+const { Server } = require('socket.io');
 
 const app = express();
-const server = http.createServer(app);
-const io = require('socket.io')(server, { cors: { origin: '*' } });
+const httpServer = createServer(app);
+const io = new Server(httpServer);
 
-app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const queueLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false
+// --- Simple session-based auth for receptionist-only pages ---
+app.use(session({
+  secret: 'replace_with_a_strong_secret_in_prod',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // set true if using HTTPS in prod
+}));
+
+// Replace this with your real credential check (store hashed passwords server-side)
+const RECEP_CREDENTIALS = { username: 'akshara_reception', password: 'Akshara@123' };
+
+// login endpoint (called by receptionist login form)
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  if (username === RECEP_CREDENTIALS.username && password === RECEP_CREDENTIALS.password) {
+    req.session.user = 'reception';
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ ok: false, error: 'Invalid credentials' });
 });
 
-async function broadcastQueue() {
-  const db = await loadDb();
-  io.emit('queue_state', db.appointments);
+// logout
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// middleware to protect receptionist-only routes
+function requireReception(req, res, next) {
+  if (req.session && req.session.user === 'reception') return next();
+  return res.status(401).send('Unauthorized');
 }
 
-// login
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
-  const db = await loadDb();
-  const user = db.users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  const ok = bcrypt.compareSync(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
-  return res.json({ token, user: { username: user.username, role: user.role }});
-});
+// ----------------- In-memory queue model -----------------
+// You likely already have a queue structure; adapt if needed.
+let patients = []; // array of patient objects
+let averageConsultMins = 8; // initial default, updates after each consult
+let doctorPresent = false;
 
-// public queue (search)
-app.get('/api/queue', queueLimiter, async (req, res) => {
-  const q = (req.query.query || '').trim();
-  const db = await loadDb();
-  const list = db.appointments || [];
-  if (!q) return res.json(list);
-  const ql = q.toLowerCase();
-  const matches = list.filter(a => {
-    if (!a) return false;
-    return (a.token && a.token.toLowerCase().includes(ql)) ||
-           (a.name && a.name.toLowerCase().includes(ql)) ||
-           (a.phone && a.phone.toLowerCase().includes(ql));
-  }).slice(0, 10);
-  const masked = matches.map(a => {
-    const copy = Object.assign({}, a);
-    const matchPhone = copy.phone && copy.phone.toLowerCase().includes(ql);
-    const matchToken = copy.token && copy.token.toLowerCase().includes(ql);
-    if (!matchPhone && !matchToken && copy.name) {
-      const n = copy.name.trim().split(' ')[0] || copy.name;
-      const mask = n.length > 3 ? (n[0] + '***' + n.slice(-2)) : n;
-      copy.nameMasked = mask;
-      delete copy.name;
-    } else {
-      copy.nameMasked = copy.name;
+// patient object example:
+// {
+//   token: 1, name: 'Mr X', phone: '...', bookedTime: ISO string or null,
+//   estConsultMin: 8,
+//   status: 'waiting' | 'in_consult' | 'done',
+//   arrivalTime: ISO string,
+//   startTime: ISO string | null,
+//   endTime: ISO string | null
+// }
+
+// helper to emit queue change
+function broadcastQueue() {
+  io.emit('queue_update', computeQueueView());
+}
+
+// basic token generator
+function nextToken() {
+  const maxToken = patients.reduce((m, p) => Math.max(m, p.token || 0), 0);
+  return maxToken + 1;
+}
+
+// compute queue view with ETAs and formatted output
+function computeQueueView() {
+  // copy and sort by token (or arrival/booked order logic)
+  const list = [...patients].sort((a, b) => (a.token || 0) - (b.token || 0));
+  const now = new Date();
+
+  // find if someone is in consult
+  const inConsult = list.find(p => p.status === 'in_consult');
+  // baseline time
+  let baselineTime;
+  if (inConsult && inConsult.startTime) {
+    baselineTime = new Date(inConsult.startTime);
+  } else if (doctorPresent) {
+    baselineTime = now;
+  } else {
+    baselineTime = null; // if doctor not present, for patients with bookedTime we use that
+  }
+
+  // we'll accumulate time offset in minutes
+  let offsetMins = 0;
+  // if a patient is in consult, compute remaining time for that consult: est - elapsed
+  if (inConsult && inConsult.startTime) {
+    const est = inConsult.estConsultMin || averageConsultMins;
+    const elapsed = Math.max(0, Math.floor((now - new Date(inConsult.startTime)) / 60000));
+    const remaining = Math.max(0, est - elapsed);
+    offsetMins += remaining;
+  }
+
+  const view = list.map((p, idx) => {
+    if (p.status === 'done') {
+      return {
+        ...p,
+        displayType: 'done',
+        startTime: p.startTime,
+        endTime: p.endTime
+      };
     }
-    delete copy.createdAt; delete copy.updatedAt;
-    return copy;
+    if (p.status === 'in_consult') {
+      return {
+        ...p,
+        displayType: 'in_consult',
+        startTime: p.startTime
+      };
+    }
+    // waiting patient: compute ETA
+    let eta = null;
+    if (!baselineTime) {
+      // Doctor not present -> use bookedTime if available, else null
+      if (p.bookedTime) {
+        eta = new Date(p.bookedTime);
+      } else {
+        // fallback: now + offset
+        eta = new Date(now.getTime() + offsetMins * 60000);
+      }
+    } else {
+      eta = new Date(baselineTime.getTime() + offsetMins * 60000);
+    }
+    // add this patient's estConsult to offset for next patient
+    const est = (p.estConsultMin || averageConsultMins);
+    offsetMins += est;
+    return {
+      ...p,
+      displayType: 'waiting',
+      eta: eta.toISOString()
+    };
   });
-  res.json(masked);
+
+  return { patients: view, averageConsultMins, doctorPresent };
+}
+
+// ----------------- API endpoints -----------------
+
+// get queue (used by client display page)
+app.get('/api/queue', (req, res) => {
+  res.json(computeQueueView());
 });
 
-// create appointment (receptionist)
-app.post('/api/appointments', authMiddleware, async (req, res) => {
-  if (!['reception','admin'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
-  const { name, age, sex, phone, email, arrivalTime, estConsultMin } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Missing name' });
-  if (!phone) return res.status(400).json({ error: 'Missing phone' });
-  const phonePattern = /^\+?[0-9\s\-]{7,15}$/;
-  if (!phonePattern.test(phone)) return res.status(400).json({ error: 'Invalid phone' });
-
-  const db = await loadDb();
-  const next = (db.appointments.length || 0) + 1;
-  const token = makeToken(next);
-  const appt = {
-    id: Date.now(),
-    token,
+// add patient (receptionist uses this)
+app.post('/api/patients', requireReception, (req, res) => {
+  const { name, age, sex, phone, bookedTime, estConsultMin } = req.body;
+  const newP = {
+    token: nextToken(),
     name,
-    age: age || null,
-    sex: sex || null,
-    phone: phone || null,
-    email: email || null,
-    arrivalTime: arrivalTime ? new Date(arrivalTime).toISOString() : new Date().toISOString(),
-    estConsultMin: estConsultMin || 8,
+    age,
+    sex,
+    phone,
+    bookedTime: bookedTime || null,
+    estConsultMin: estConsultMin || averageConsultMins,
     status: 'waiting',
+    arrivalTime: new Date().toISOString(),
     startTime: null,
-    endTime: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    endTime: null
   };
-  db.appointments.push(appt);
-  await saveDb(db);
-  await broadcastQueue();
-  res.json(appt);
+  patients.push(newP);
+  broadcastQueue();
+  return res.json({ ok: true, patient: newP });
 });
 
-// start consult
-app.post('/api/consult/start', authMiddleware, async (req, res) => {
-  if (!['reception','doctor','admin'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'missing token' });
-  const db = await loadDb();
-  const appt = db.appointments.find(a => a.token === token);
-  if (!appt) return res.status(404).json({ error: 'not found' });
-  appt.status = 'inconsult';
-  appt.startTime = new Date().toISOString();
-  appt.updatedAt = new Date().toISOString();
-  await saveDb(db);
-  await broadcastQueue();
-  res.json(appt);
+// receptionist toggles doctorPresent
+app.post('/api/doctor/present', requireReception, (req, res) => {
+  const { present } = req.body;
+  doctorPresent = !!present;
+  broadcastQueue();
+  return res.json({ ok: true, doctorPresent });
 });
 
-// end consult
-app.post('/api/consult/end', authMiddleware, async (req, res) => {
-  if (!['reception','doctor','admin'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'missing token' });
-  const db = await loadDb();
-  const appt = db.appointments.find(a => a.token === token);
-  if (!appt) return res.status(404).json({ error: 'not found' });
-  if (!appt.startTime) return res.status(400).json({ error: 'consult not started' });
-  appt.status = 'done';
-  appt.endTime = new Date().toISOString();
-  appt.updatedAt = new Date().toISOString();
-  const durationMin = Math.round((new Date(appt.endTime) - new Date(appt.startTime)) / 60000);
-  db.consults.push({ id: Date.now(), appointmentId: appt.id, token: appt.token, doctor: req.user.username, startTime: appt.startTime, endTime: appt.endTime, durationMin });
-  await saveDb(db);
-  await broadcastQueue();
-  res.json({ appointment: appt, durationMin });
+// start consult for token
+app.post('/api/patient/:token/start', requireReception, (req, res) => {
+  const token = Number(req.params.token);
+  const p = patients.find(x => x.token === token);
+  if (!p) return res.status(404).json({ ok: false, error: 'Not found' });
+
+  // prevent duplicate "in consult"
+  if (p.status === 'in_consult') {
+    return res.status(400).json({ ok: false, error: 'Patient already in consult' });
+  }
+
+  // if another patient currently in_consult, you may still start this patient (depends on your policy).
+  // We'll allow it but mark this patient as in_consult and update startTime.
+  p.status = 'in_consult';
+  p.startTime = new Date().toISOString();
+  // clear any previous endTime (if re-opened)
+  p.endTime = null;
+  broadcastQueue();
+  return res.json({ ok: true, patient: p });
 });
 
-// delete all appointments (reset)
-app.delete('/api/appointments', authMiddleware, async (req, res) => {
-  if (!['reception','admin'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
-  const db = await loadDb();
-  db.appointments = [];
-  await saveDb(db);
-  await broadcastQueue();
-  res.json({ ok: true });
+// end consult for token
+app.post('/api/patient/:token/end', requireReception, (req, res) => {
+  const token = Number(req.params.token);
+  const p = patients.find(x => x.token === token);
+  if (!p) return res.status(404).json({ ok: false, error: 'Not found' });
+
+  // only end if currently in consult (or allow ending if waiting — we handle)
+  if (p.status !== 'in_consult') {
+    return res.status(400).json({ ok: false, error: 'Patient is not in consult' });
+  }
+
+  p.endTime = new Date().toISOString();
+  // compute actual consult duration and update averageConsultMins (simple running avg)
+  const started = new Date(p.startTime);
+  const ended = new Date(p.endTime);
+  const actualMinutes = Math.max(1, Math.round((ended - started) / 60000)); // at least 1 min
+  // update average using simple exponential moving average for stability
+  averageConsultMins = Math.round((averageConsultMins * 3 + actualMinutes) / 4);
+
+  p.status = 'done';
+  broadcastQueue();
+  return res.json({ ok: true, patient: p, averageConsultMins });
 });
 
-// serve UI
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-io.on('connection', async (socket) => {
-  const db = await loadDb();
-  socket.emit('queue_state', db.appointments);
-  socket.on('request_queue', async () => {
-    const fresh = await loadDb();
-    socket.emit('queue_state', fresh.appointments);
-  });
+// remove or reset list (reception)
+app.post('/api/reset', requireReception, (req, res) => {
+  patients = [];
+  averageConsultMins = 8;
+  doctorPresent = false;
+  broadcastQueue();
+  return res.json({ ok: true });
 });
 
-server.listen(PORT, () => console.log(`Server listening on http://localhost:${PORT}`));
+// simple health
+app.get('/health', (req, res) => res.send('ok'));
+
+// ---------------- socket.io connections ----------------
+io.on('connection', socket => {
+  // send current view on connect
+  socket.emit('queue_update', computeQueueView());
+
+  socket.on('ping', () => socket.emit('pong'));
+});
+
+// ---------------- start server ----------------
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
+});
