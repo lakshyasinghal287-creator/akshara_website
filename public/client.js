@@ -277,7 +277,21 @@ function bindShiftManagerUI() {
     const pass = $('password') ? $('password').value.trim() : '';
     if (!user || !pass) { if ($('loginError')) $('loginError').textContent = 'Enter credentials'; return; }
     try {
-      const res = await apiFetch('/login'), {{ credentials: 'same-origin', method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass ) });
+      const res = await apiFetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+      });const data = await res.json();
+      jwt = data.token || '';
+      try { localStorage.setItem('mf_jwt', jwt); } catch(e) {}
+      if (data.user && data.user.username) $('currentUser').textContent = data.user.username;
+      if ($('loginError')) $('loginError').textContent = '';
+      showScreen('homeScreen');
+    } catch (err) {
+      console.error(err);
+      if ($('loginError')) $('loginError').textContent = 'Login error';
+    }
+  });
       if (!res.ok) {
         const j = await res.json().catch(()=>({ error:'Login failed' }));
         if ($('loginError')) $('loginError').textContent = j.error || 'Login failed';
